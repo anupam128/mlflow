@@ -42,6 +42,8 @@ try:
 except ImportError:
     from io import StringIO
 
+import pyarrow as pa
+
 _SERVER_MODEL_PATH = "__pyfunc_model_path__"
 
 CONTENT_TYPE_CSV = "text/csv"
@@ -49,13 +51,15 @@ CONTENT_TYPE_JSON = "application/json"
 CONTENT_TYPE_JSON_RECORDS_ORIENTED = "application/json; format=pandas-records"
 CONTENT_TYPE_JSON_SPLIT_ORIENTED = "application/json; format=pandas-split"
 CONTENT_TYPE_JSON_SPLIT_NUMPY = "application/json-numpy-split"
+CONTENT_TYPE_ARROW = "application/arrow"
 
 CONTENT_TYPES = [
     CONTENT_TYPE_CSV,
     CONTENT_TYPE_JSON,
     CONTENT_TYPE_JSON_RECORDS_ORIENTED,
     CONTENT_TYPE_JSON_SPLIT_ORIENTED,
-    CONTENT_TYPE_JSON_SPLIT_NUMPY
+    CONTENT_TYPE_JSON_SPLIT_NUMPY,
+    CONTENT_TYPE_ARROW
 ]
 
 _logger = logging.getLogger(__name__)
@@ -79,6 +83,10 @@ def parse_json_input(json_input, orient="split"):
                 " produced using the `pandas.DataFrame.to_json(..., orient='{orient}')`"
                 " method.".format(orient=orient)),
             error_code=MALFORMED_REQUEST)
+
+def parse_arrow_input(arrow_input):
+    context = pa.default_serialization_context()
+    return context.deserialize(arrow_input)
 
 
 def parse_csv_input(csv_input):
@@ -181,6 +189,8 @@ def init(model):
                                     orient="records")
         elif flask.request.content_type == CONTENT_TYPE_JSON_SPLIT_NUMPY:
             data = parse_split_oriented_json_input_to_numpy(flask.request.data.decode('utf-8'))
+        elif flask.request.content_type == CONTENT_TYPE_ARROW:
+            data = parse_arrow_input(flask.request.get_data())
         else:
             return flask.Response(
                 response=("This predictor only supports the following content types,"
